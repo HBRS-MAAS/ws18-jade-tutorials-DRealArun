@@ -24,15 +24,12 @@ import java.net.*;
 
 @SuppressWarnings("serial")
 public class BookSellerAgent extends Agent {
-	private int MAX_BOOKS = 4;
+	private int MAX_BOOKS = 8; // Including ebooks
 	private String[] inventory_names = new String[MAX_BOOKS];
 	private int[] inventory_prices = new int[MAX_BOOKS];
 	private int[] inventory_quantity = new int[MAX_BOOKS];
 	private String source_path = "";
 	private String relative_path = "/src/main/java/maas/tutorials/SellerInventory.csv";
-	// private String[] inventory_names = {"Book1","Book2","Book3","Book4"};
-	// private int[] inventory_prices = {40,30,20,10};
-	// private int[] inventory_quantity = {40,30,20,30};
 	public static int stringToint( String str ){
         int i = 0, number = 0;
         boolean isNegative = false;
@@ -52,7 +49,6 @@ public class BookSellerAgent extends Agent {
 
 	public void getInventory(String arg) {
 		source_path =  System.getProperty("user.dir");
-		// String fileToParse = "/home/arun/Workspace/Third Semester/MultiAgent/ws18-jade-tutorials-DRealArun/src/main/java/maas/tutorials/SellerInventory.csv";
 		String fileToParse = source_path + relative_path;
 		File tmpfile = new File(fileToParse);
 		boolean exists = tmpfile.exists();
@@ -61,13 +57,16 @@ public class BookSellerAgent extends Agent {
 			doDelete();
 		}
         BufferedReader fileReader = null;
+ 		StringBuilder st = new StringBuilder();
+        st.append("****************************************************************************\n");
+        st.append("********************** "+arg+ " Catalogue ***********************************\n");
+        st.append("****************************************************************************\n");
          
         //Delimiter used in CSV file
         final String DELIMITER = ",";
         try
         {
             String line = "";
-            System.out.println("I am here"+arg);
             //Create the file reader
             fileReader = new BufferedReader(new FileReader(fileToParse));
              
@@ -81,15 +80,24 @@ public class BookSellerAgent extends Agent {
 	                int count = 0;
 	                for(int i=1; i<tokens.length; i=i+3) {
 	                	inventory_names[count] = tokens[i];
+	                	st.append(""+(count+1)+")");
+	                	st.append(" Title : "+inventory_names[count]);
 	                	inventory_prices[count] = stringToint(tokens[i+1]);
+	                	st.append(" ,Price : "+inventory_prices[count]);
 	                	inventory_quantity[count] = stringToint(tokens[i+2]);
+	                	if (inventory_names[count].contains("E-Book")) {
+	                		st.append(" ,Quantity : Unlimited");
+	                		st.append(" ,Type : Softcopy/ebook\n");
+	                	} else {
+	                		st.append(" ,Quantity : "+inventory_quantity[count]);
+	                		st.append(" ,Type : Hardcopy/Paperback\n");
+	                	}
 	                	count += 1;
-	                } 
+	                }
             	}
             }
-            // System.out.println(inventory_names[0]);
-            // System.out.println(inventory_prices[0]);
-            // System.out.println(inventory_quantity[0]);
+            st.append("****************************************************************************");
+            System.out.println(st.toString());
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -142,22 +150,31 @@ public class BookSellerAgent extends Agent {
 
 		// Add the behaviour serving purchase orders from buyer agents
 		addBehaviour(new PurchaseOrdersServer());
-    //     try {
- 	// 		Thread.sleep(3000);
- 	// 	} catch (InterruptedException e) {
- 	// 		//e.printStackTrace();
- 	// 	}
-		// addBehaviour(new shutdown());
 
 	}
-	// private class inventory {
-		// private String[] inventory_names = [];
-		// private int[] inventory_prices = [];
-		// private int[] inventory_quantity = [];
-	// }
+	
 	// Put agent clean-up operations here
 	protected void takeDown() {
+		final String DELIMITER = "@";
+		String name = getAID().getName().split(DELIMITER)[0];
 		// Deregister from the yellow pages
+		StringBuilder st = new StringBuilder();
+		st.append("**********************************************************************************************************************************\n");
+        st.append("********************************************** "+name+ " Inventory ***************************************************************\n");
+        st.append("**********************************************************************************************************************************\n");
+        for(int i=0; i< inventory_names.length; i++) {
+        	st.append(""+(i+1)+")");
+        	String title = inventory_names[i];
+        	st.append(" Title : "+title);
+        	st.append(" ,Price : "+catalogue.get(title));
+        	if (title.contains("E-Book")) {
+        		st.append(" ,Quantity : Unlimited");
+        		st.append(" ,Type : Softcopy/ebook\n");
+        	} else {
+        		st.append(" ,Quantity : "+remaining_inventory.get(title));
+        		st.append(" ,Type : Hardcopy/Paperback\n");
+        	}
+        }
 		try {
 			DFService.deregister(this);
 		}
@@ -165,7 +182,9 @@ public class BookSellerAgent extends Agent {
 			fe.printStackTrace();
 		}
 		// Printout a dismissal message
-		System.out.println("Seller-agent "+getAID().getName()+" terminating.");
+		st.append("Seller Agent "+name+" will terminate now !\n");
+		st.append("**********************************************************************************************************************************");
+		System.out.println(st.toString());
 	}
 
     // Taken from http://www.rickyvanrijn.nl/2017/08/29/how-to-shutdown-jade-agent-platform-programmatically/
@@ -204,15 +223,17 @@ public class BookSellerAgent extends Agent {
 				// CFP Message received. Process it
 				String title = msg.getContent();
 				ACLMessage reply = msg.createReply();
-
 				Integer price = (Integer) catalogue.get(title);
+				// System.out.println(getAID().getName()+"checking "+title+" "+price+" "+msg.getSender().getName());
 				if (price != null) {
 					// The requested book is available for sale. Reply with the price
+					// System.out.println("\t"+getAID().getLocalName()+" Proposing price"+ title+" "+price+" "+msg.getSender().getName());
 					reply.setPerformative(ACLMessage.PROPOSE);
 					reply.setContent(String.valueOf(price.intValue()));
 				}
 				else {
 					// The requested book is NOT available for sale.
+					// System.out.println("\t"+getAID().getLocalName()+" Refusing price"+ title+" "+price+" "+msg.getSender().getName());
 					reply.setPerformative(ACLMessage.REFUSE);
 					reply.setContent("not-available");
 				}
@@ -236,6 +257,8 @@ public class BookSellerAgent extends Agent {
 		public void action() {
 			MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL);
 			ACLMessage msg = myAgent.receive(mt);
+			final String DELIMITER = "@";
+			String name = getAID().getName().split(DELIMITER)[0];
 			if (msg != null) {
 				// ACCEPT_PROPOSAL Message received. Process it
 				String title = msg.getContent();
@@ -244,15 +267,23 @@ public class BookSellerAgent extends Agent {
 				// Integer price = (Integer) catalogue.remove(title);
 				Integer price = (Integer) catalogue.get(title);
 				Integer quantity = (Integer) remaining_inventory.get(title);
-				System.out.println("Book Details: " + title + " Price: " + price + " No's: " + quantity);
+				if (title.contains("E-Book")) {
+					// System.out.println("Book Details: " + title + " Price: " + price + " No's: Unlimited");
+				} else {
+					// System.out.println("Book Details: " + title + " Price: " + price + " No's: " + quantity);
+				}
 				if ((price != null) && (quantity != null)) {
 					reply.setPerformative(ACLMessage.INFORM);
-					System.out.println(title+" sold to agent "+msg.getSender().getName());
-					remaining_inventory.put(title, quantity-1);
-					System.out.println("Number of Books Remaining:" + remaining_inventory.get(title));
-					if (quantity == 0) {
-						catalogue.remove(title);
-						remaining_inventory.remove(title);
+					// System.out.println(title+" sold to agent "+msg.getSender().getName());
+					String name_buyer = msg.getSender().getName().split(DELIMITER)[0];
+					// System.out.println("<----------------"+name+" sold the book "+title+" to "+name_buyer);
+					if (!title.contains("E-Book")) {
+						remaining_inventory.put(title, quantity-1);
+						// System.out.println("Number of Books Remaining:" + remaining_inventory.get(title));
+						if (quantity == 0) {
+							catalogue.remove(title);
+							remaining_inventory.remove(title);
+						}
 					}
 				}
 				else {

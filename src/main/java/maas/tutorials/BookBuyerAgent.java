@@ -31,11 +31,20 @@ public class BookBuyerAgent extends Agent {
 	// Counter 
 	private Integer counter = 0;
 	private Integer choice = 0;
+	private Integer bookType = 0;
+	private static boolean shutdownRequested = false;
 	private List<Orders> status = new ArrayList<Orders>();
 
 	protected void setup() {
 	// Printout a welcome message
 		System.out.println("Hello! Buyer-agent "+getAID().getName()+" is ready.");
+		try {
+ 			Thread.sleep(6000);
+ 		} catch (InterruptedException e) {
+ 			//e.printStackTrace();
+ 		}
+		final String DELIMITER = "@";
+		String name = getAID().getName().split(DELIMITER)[0];
 		// Add a TickerBehaviour that schedules a request to seller agents every minute
 		addBehaviour(new TickerBehaviour(this, 600) {
 			protected void onTick() {
@@ -49,11 +58,11 @@ public class BookBuyerAgent extends Agent {
 				template.addServices(sd);
 				try {
 					DFAgentDescription[] result = DFService.search(myAgent, template); 
-					System.out.println("Found the following seller agents:");
+					// System.out.println("Found the following seller agents:");
 					sellerAgents = new AID[result.length];
 					for (int i = 0; i < result.length; ++i) {
 						sellerAgents[i] = result[i].getName();
-						System.out.println(sellerAgents[i].getName());
+						// System.out.println(sellerAgents[i].getName());
 					}
 				}
 				catch (FIPAException fe) {
@@ -68,18 +77,29 @@ public class BookBuyerAgent extends Agent {
 	// Put agent clean-up operations here
 	protected void takeDown() {
 		// Printout a dismissal message
-		System.out.println("Buyer-agent "+getAID().getName()+" terminating.");
-		System.out.println("************************************************");
-		System.out.println("Order Status :");
+		final String DELIMITER = "@";
+		String name = getAID().getName().split(DELIMITER)[0];
+		StringBuilder st = new StringBuilder();
+		st.append("**********************************************************************************************************************************\n");
+        st.append("********************************************** "+name+ " Order Status ***************************************************************\n");
+        st.append("**********************************************************************************************************************************\n");
 		for(int i=0; i<status.size(); i++) {
-			System.out.println(""+(i+1));
-			System.out.println("Title :"+status.get(i).title);
-			System.out.println("Price :"+status.get(i).price);
-			System.out.println("Order Status :"+status.get(i).orderStatus);
-			System.out.println("Supplier :"+status.get(i).supplier);
+			st.append(""+(i+1)+")");
+			st.append(" Title :"+status.get(i).title);
+			st.append("    ,Price :"+status.get(i).price);
+			st.append("    ,Order Status :"+status.get(i).orderStatus);
+			st.append("    ,Supplier :"+status.get(i).supplier.split(DELIMITER)[0]);
+			if (status.get(i).title.contains("E-Book")) {
+				st.append("    ,Type : Softcopy/ebook\n");
+			} else {
+				st.append("    ,Type : Hardcopy/Paperback\n");
+			}
 		}
-		System.out.println("************************************************");
+		st.append("Buyer Agent "+name+" will terminate now !\n");
+		st.append("**********************************************************************************************************************************");
+		System.out.println(st.toString());
 	}
+
 	private class Orders {
 		private String title;
 		private String orderStatus;
@@ -105,9 +125,21 @@ public class BookBuyerAgent extends Agent {
 			switch (step) {
 			case 0:
 				choice = rand.nextInt(7) + 1;
-				targetBookTitle = "Book"+choice;
+				bookType = rand.nextInt(2);
+				if (bookType == 0) {
+					targetBookTitle = "Book"+choice;
+				} else {
+					targetBookTitle = "E-Book"+choice;
+				}
 				refuseCnt = 0;
-				System.out.println("Trying to buy "+targetBookTitle);
+				repliesCnt = 0;
+				bestSeller = null; // The agent who provides the best offer 
+				bestPrice = 0;  // The best offered price
+
+				final String DELIMITER = "@";
+				String name = getAID().getName().split(DELIMITER)[0];
+				// System.out.println("____________________________________________________________________________");
+				// System.out.println(""+name+" is searching for "+targetBookTitle+" ---------------->");
 				// Send the cfp to all sellers
 				ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 				for (int i = 0; i < sellerAgents.length; ++i) {
@@ -125,30 +157,42 @@ public class BookBuyerAgent extends Agent {
 			case 1:
 				// Receive all proposals/refusals from seller agents
 				ACLMessage reply = myAgent.receive(mt);
+				// System.out.println("\t Message Received"+repliesCnt+" "+refuseCnt);
 				if (reply != null) {
 					// Reply received
 					if (reply.getPerformative() == ACLMessage.PROPOSE) {
 						// This is an offer 
 						int price = Integer.parseInt(reply.getContent());
+						// System.out.println("proposals Received"+price);
 						if (bestSeller == null || price < bestPrice) {
 							// This is the best offer at present
 							bestPrice = price;
+							// System.out.println("Update Price"+bestPrice);
 							bestSeller = reply.getSender();
 						}
 					} else if (reply.getPerformative() == ACLMessage.REFUSE) {
+						// System.out.println("proposals Refused");
 						refuseCnt++;
-						currentOrder = new Orders();
-						currentOrder.title = targetBookTitle;
-						currentOrder.supplier = "Cannot be found";
-						currentOrder.price = "Cannot be found";
-						currentOrder.orderStatus = "Failed";
-						status.add(currentOrder);
+						// currentOrder = new Orders();
+						// currentOrder.title = targetBookTitle;
+						// currentOrder.supplier = "Cannot be found";
+						// currentOrder.price = "Cannot be found";
+						// currentOrder.orderStatus = "Failed";
+						// status.add(currentOrder);
 					}
 					repliesCnt++;
 					if (repliesCnt >= sellerAgents.length) {
 						// We received all replies
+						// System.out.println("\tReceived all replies");
 						if (refuseCnt >= sellerAgents.length) {
-							System.out.println(""+targetBookTitle+" could not be located");
+							// System.out.println("\tEveryone refused");
+							// System.out.println(""+targetBookTitle+" could not be located");
+							currentOrder = new Orders();
+							currentOrder.title = targetBookTitle;
+							currentOrder.supplier = "Cannot be found";
+							currentOrder.price = "Cannot be found";
+							currentOrder.orderStatus = "Failed";
+							status.add(currentOrder);
 							step = 0;
 						} else { 
 							step = 2;
@@ -179,18 +223,22 @@ public class BookBuyerAgent extends Agent {
 					// Purchase order reply received
 					if (reply.getPerformative() == ACLMessage.INFORM) {
 						// Purchase successful. We can terminate
-						System.out.println(targetBookTitle+" successfully purchased from agent "+reply.getSender().getName());
-						System.out.println("Price = "+bestPrice);
-						// myAgent.doDelete();
+						// System.out.println(targetBookTitle+" successfully purchased from agent "+reply.getSender().getName());
+						// System.out.println("Price = "+bestPrice);
 						counter += 1;
 						flag = true;
 					} else {
-						System.out.println("Attempt failed: requested book already sold.");
+						// System.out.println("Attempt failed: requested book already sold.");
 					}
-					if (counter == MIN_ORDERS) {
+					if (counter >= MIN_ORDERS) {
 						step = 4;
-						myAgent.doDelete();
-						System.out.println("******************BUYER : "+getAID().getName()+" is done******************");
+						name = getAID().getName().split("@")[0];
+						if (!shutdownRequested) {
+							myAgent.addBehaviour(new shutdown());
+							shutdownRequested = true;
+						}
+						// myAgent.doDelete();
+						// System.out.println("******************BUYER : "+getAID().getName()+" is done******************");
 					} else {
 						step = 0;
 					}
@@ -210,7 +258,7 @@ public class BookBuyerAgent extends Agent {
 				currentOrder.price = "Not Available";
 				currentOrder.orderStatus = "Failed";
 				status.add(currentOrder);
-				System.out.println("Attempt failed: "+targetBookTitle+" not available for sale");
+				// System.out.println("Attempt failed: "+targetBookTitle+" not available for sale");
 			} else if (flag){
 				flag = false;
 				currentOrder = new Orders();
@@ -220,6 +268,7 @@ public class BookBuyerAgent extends Agent {
 				currentOrder.orderStatus = "Success";
 				status.add(currentOrder);
 			}
+			// System.out.println("\t Truth Condition "+((step == 2 && bestSeller == null) || (step == 4)));
 			return ((step == 2 && bestSeller == null) || (step == 4));
 		}
 	}  // End of inner class RequestPerformer
@@ -227,6 +276,11 @@ public class BookBuyerAgent extends Agent {
     // Taken from http://www.rickyvanrijn.nl/2017/08/29/how-to-shutdown-jade-agent-platform-programmatically/
 	private class shutdown extends OneShotBehaviour{
 		public void action() {
+			try {
+	 			Thread.sleep(1000);
+	 		} catch (InterruptedException e) {
+	 			//e.printStackTrace();
+	 		}
 			ACLMessage shutdownMessage = new ACLMessage(ACLMessage.REQUEST);
 			Codec codec = new SLCodec();
 			myAgent.getContentManager().registerLanguage(codec);
