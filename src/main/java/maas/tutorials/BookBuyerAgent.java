@@ -15,7 +15,8 @@ import jade.domain.DFService;
 import jade.domain.FIPAException;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
-import java.util.Random; 
+import java.util.Random;
+import java.util.*;
 
 
 @SuppressWarnings("serial")
@@ -30,6 +31,7 @@ public class BookBuyerAgent extends Agent {
 	// Counter 
 	private Integer counter = 0;
 	private Integer choice = 0;
+	private List<Orders> status = new ArrayList<Orders>();
 
 	protected void setup() {
 	// Printout a welcome message
@@ -67,6 +69,22 @@ public class BookBuyerAgent extends Agent {
 	protected void takeDown() {
 		// Printout a dismissal message
 		System.out.println("Buyer-agent "+getAID().getName()+" terminating.");
+		System.out.println("************************************************");
+		System.out.println("Order Status :");
+		for(int i=0; i<status.size(); i++) {
+			System.out.println(""+(i+1));
+			System.out.println("Title :"+status.get(i).title);
+			System.out.println("Price :"+status.get(i).price);
+			System.out.println("Order Status :"+status.get(i).orderStatus);
+			System.out.println("Supplier :"+status.get(i).supplier);
+		}
+		System.out.println("************************************************");
+	}
+	private class Orders {
+		private String title;
+		private String orderStatus;
+		private String supplier;
+		private String price;
 	}
 	/**
 	   Inner class RequestPerformer.
@@ -79,12 +97,16 @@ public class BookBuyerAgent extends Agent {
 		private int repliesCnt = 0; // The counter of replies from seller agents
 		private MessageTemplate mt; // The template to receive replies
 		private int step = 0;
+		private Orders currentOrder;
+		private boolean flag = false;
+		private int refuseCnt = 0;
 
 		public void action() {
 			switch (step) {
 			case 0:
 				choice = rand.nextInt(7) + 1;
 				targetBookTitle = "Book"+choice;
+				refuseCnt = 0;
 				System.out.println("Trying to buy "+targetBookTitle);
 				// Send the cfp to all sellers
 				ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
@@ -113,11 +135,24 @@ public class BookBuyerAgent extends Agent {
 							bestPrice = price;
 							bestSeller = reply.getSender();
 						}
+					} else if (reply.getPerformative() == ACLMessage.REFUSE) {
+						refuseCnt++;
+						currentOrder = new Orders();
+						currentOrder.title = targetBookTitle;
+						currentOrder.supplier = "Cannot be found";
+						currentOrder.price = "Cannot be found";
+						currentOrder.orderStatus = "Failed";
+						status.add(currentOrder);
 					}
 					repliesCnt++;
 					if (repliesCnt >= sellerAgents.length) {
 						// We received all replies
-						step = 2; 
+						if (refuseCnt >= sellerAgents.length) {
+							System.out.println(""+targetBookTitle+" could not be located");
+							step = 0;
+						} else { 
+							step = 2;
+						} 
 					}
 				}
 				else {
@@ -148,8 +183,8 @@ public class BookBuyerAgent extends Agent {
 						System.out.println("Price = "+bestPrice);
 						// myAgent.doDelete();
 						counter += 1;
-					}
-					else {
+						flag = true;
+					} else {
 						System.out.println("Attempt failed: requested book already sold.");
 					}
 					if (counter == MIN_ORDERS) {
@@ -169,7 +204,21 @@ public class BookBuyerAgent extends Agent {
 
 		public boolean done() {
 			if (step == 2 && bestSeller == null) {
+				currentOrder = new Orders();
+				currentOrder.title = targetBookTitle;
+				currentOrder.supplier = "Not Available";
+				currentOrder.price = "Not Available";
+				currentOrder.orderStatus = "Failed";
+				status.add(currentOrder);
 				System.out.println("Attempt failed: "+targetBookTitle+" not available for sale");
+			} else if (flag){
+				flag = false;
+				currentOrder = new Orders();
+				currentOrder.title = targetBookTitle;
+				currentOrder.supplier = bestSeller.getName();
+				currentOrder.price = "" + bestPrice;
+				currentOrder.orderStatus = "Success";
+				status.add(currentOrder);
 			}
 			return ((step == 2 && bestSeller == null) || (step == 4));
 		}

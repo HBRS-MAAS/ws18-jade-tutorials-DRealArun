@@ -18,7 +18,9 @@ import jade.domain.FIPAAgentManagement.ServiceDescription;
 import java.util.*;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.File;
 import java.io.IOException;
+import java.net.*;
 
 @SuppressWarnings("serial")
 public class BookSellerAgent extends Agent {
@@ -26,6 +28,8 @@ public class BookSellerAgent extends Agent {
 	private String[] inventory_names = new String[MAX_BOOKS];
 	private int[] inventory_prices = new int[MAX_BOOKS];
 	private int[] inventory_quantity = new int[MAX_BOOKS];
+	private String source_path = "";
+	private String relative_path = "/src/main/java/maas/tutorials/SellerInventory.csv";
 	// private String[] inventory_names = {"Book1","Book2","Book3","Book4"};
 	// private int[] inventory_prices = {40,30,20,10};
 	// private int[] inventory_quantity = {40,30,20,30};
@@ -47,7 +51,15 @@ public class BookSellerAgent extends Agent {
     }   
 
 	public void getInventory(String arg) {
-		String fileToParse = "/home/arun/Workspace/Third Semester/MultiAgent/ws18-jade-tutorials-DRealArun/src/main/java/maas/tutorials/SellerInventory.csv";
+		source_path =  System.getProperty("user.dir");
+		// String fileToParse = "/home/arun/Workspace/Third Semester/MultiAgent/ws18-jade-tutorials-DRealArun/src/main/java/maas/tutorials/SellerInventory.csv";
+		String fileToParse = source_path + relative_path;
+		File tmpfile = new File(fileToParse);
+		boolean exists = tmpfile.exists();
+		if (exists == false) {
+			System.out.println("INVENTORY FILE DOES NOT EXIT ! exiting ...");
+			doDelete();
+		}
         BufferedReader fileReader = null;
          
         //Delimiter used in CSV file
@@ -108,7 +120,7 @@ public class BookSellerAgent extends Agent {
 		// Update the catalogue
 		for (int i = 0; i < inventory_names.length; ++i) {
 			catalogue.put(inventory_names[i], new Integer(inventory_prices[i]));
-			remaining_inventory.put(inventory_names[i], 5);
+			remaining_inventory.put(inventory_names[i], new Integer(inventory_quantity[i]));
 		}
 
 		// Register the book-selling service in the yellow pages
@@ -237,10 +249,11 @@ public class BookSellerAgent extends Agent {
 					reply.setPerformative(ACLMessage.INFORM);
 					System.out.println(title+" sold to agent "+msg.getSender().getName());
 					remaining_inventory.put(title, quantity-1);
+					System.out.println("Number of Books Remaining:" + remaining_inventory.get(title));
 					if (quantity == 0) {
 						catalogue.remove(title);
+						remaining_inventory.remove(title);
 					}
-					System.out.println("Number of Books Remaining:" + remaining_inventory.get(title));
 				}
 				else {
 					// The requested book has been sold to another buyer in the meanwhile .
