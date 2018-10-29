@@ -21,41 +21,39 @@ import java.util.*;
 
 @SuppressWarnings("serial")
 public class BookBuyerAgent extends Agent {
-	// The title of the book to buy
+	//Generate the title of the books to buy
 	Random rand = new Random();
 	private int MIN_ORDERS = 3;
-	// private String[] targetBookTitles =  {"Book1","Book5"};
 	private String targetBookTitle = "";
 	// The list of known seller agents
 	private AID[] sellerAgents;
 	// Counter 
-	private Integer counter = 0;
-	private Integer choice = 0;
-	private Integer bookType = 0;
-	private static boolean shutdownRequested = false;
-	private List<Orders> status = new ArrayList<Orders>();
+	private Integer counter = 0; // Counter to keep track of how many books are purchased
+	private Integer choice = 0;  // Random choice variable to choose, E-Book or Paperback
+	private Integer bookType = 0; // E-Book or Paperback
+	private static boolean shutdownRequested = false; // static variable used to find if shutdown is triggered
+	private List<Orders> status = new ArrayList<Orders>(); // Final Status to print
+	private String name = "";
 
 	protected void setup() {
-	// Printout a welcome message
-		System.out.println("Hello! Buyer-agent "+getAID().getName()+" is ready.");
+		// Printout a welcome message
+		System.out.println("Hello! Buyer-agent "+getAID().getLocalName()+" is ready.");
+
 		try {
  			Thread.sleep(6000);
  		} catch (InterruptedException e) {
  			//e.printStackTrace();
  		}
-		final String DELIMITER = "@";
-		String name = getAID().getName().split(DELIMITER)[0];
+
+ 		name = getAID().getLocalName();
 		// Add a TickerBehaviour that schedules a request to seller agents every minute
 		addBehaviour(new TickerBehaviour(this, 600) {
 			protected void onTick() {
-				// choice = rand.nextInt(7) + 1;
-				// targetBookTitle = "Book"+choice;
-				// System.out.println("Trying to buy "+targetBookTitle);
-				// Update the list of seller agents
 				DFAgentDescription template = new DFAgentDescription();
 				ServiceDescription sd = new ServiceDescription();
 				sd.setType("book-selling");
 				template.addServices(sd);
+
 				try {
 					DFAgentDescription[] result = DFService.search(myAgent, template); 
 					// System.out.println("Found the following seller agents:");
@@ -65,6 +63,7 @@ public class BookBuyerAgent extends Agent {
 						// System.out.println(sellerAgents[i].getName());
 					}
 				}
+
 				catch (FIPAException fe) {
 					fe.printStackTrace();
 				}
@@ -77,26 +76,25 @@ public class BookBuyerAgent extends Agent {
 	// Put agent clean-up operations here
 	protected void takeDown() {
 		// Printout a dismissal message
-		final String DELIMITER = "@";
-		String name = getAID().getName().split(DELIMITER)[0];
 		StringBuilder st = new StringBuilder();
-		st.append("**********************************************************************************************************************************\n");
-        st.append("********************************************** "+name+ " Order Status ***************************************************************\n");
-        st.append("**********************************************************************************************************************************\n");
+		st.append("__________________________________________________________________________________________________________________________________\n");
+		st.append("                                                                                                                                      \n");
+        st.append("                                                "+name+ " Order Status                                                                \n");
+        st.append("__________________________________________________________________________________________________________________________________\n");
 		for(int i=0; i<status.size(); i++) {
 			st.append(""+(i+1)+")");
 			st.append(" Title :"+status.get(i).title);
-			st.append("    ,Price :"+status.get(i).price);
-			st.append("    ,Order Status :"+status.get(i).orderStatus);
-			st.append("    ,Supplier :"+status.get(i).supplier.split(DELIMITER)[0]);
+			st.append(" ,   Price :"+status.get(i).price);
+			st.append(" ,   Order Status :"+status.get(i).orderStatus);
+			st.append(" ,   Supplier :"+status.get(i).supplier.split("@")[0]);
 			if (status.get(i).title.contains("E-Book")) {
-				st.append("    ,Type : Softcopy/ebook\n");
+				st.append(" ,   Type : Softcopy/ebook\n");
 			} else {
-				st.append("    ,Type : Hardcopy/Paperback\n");
+				st.append(" ,   Type : Hardcopy/Paperback\n");
 			}
 		}
 		st.append("Buyer Agent "+name+" will terminate now !\n");
-		st.append("**********************************************************************************************************************************");
+		st.append("==================================================================================================================================");
 		System.out.println(st.toString());
 	}
 
@@ -136,10 +134,6 @@ public class BookBuyerAgent extends Agent {
 				bestSeller = null; // The agent who provides the best offer 
 				bestPrice = 0;  // The best offered price
 
-				final String DELIMITER = "@";
-				String name = getAID().getName().split(DELIMITER)[0];
-				// System.out.println("____________________________________________________________________________");
-				// System.out.println(""+name+" is searching for "+targetBookTitle+" ---------------->");
 				// Send the cfp to all sellers
 				ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 				for (int i = 0; i < sellerAgents.length; ++i) {
@@ -157,35 +151,23 @@ public class BookBuyerAgent extends Agent {
 			case 1:
 				// Receive all proposals/refusals from seller agents
 				ACLMessage reply = myAgent.receive(mt);
-				// System.out.println("\t Message Received"+repliesCnt+" "+refuseCnt);
 				if (reply != null) {
 					// Reply received
 					if (reply.getPerformative() == ACLMessage.PROPOSE) {
 						// This is an offer 
 						int price = Integer.parseInt(reply.getContent());
-						// System.out.println("proposals Received"+price);
 						if (bestSeller == null || price < bestPrice) {
 							// This is the best offer at present
 							bestPrice = price;
-							// System.out.println("Update Price"+bestPrice);
 							bestSeller = reply.getSender();
 						}
 					} else if (reply.getPerformative() == ACLMessage.REFUSE) {
-						// System.out.println("proposals Refused");
 						refuseCnt++;
-						// currentOrder = new Orders();
-						// currentOrder.title = targetBookTitle;
-						// currentOrder.supplier = "Cannot be found";
-						// currentOrder.price = "Cannot be found";
-						// currentOrder.orderStatus = "Failed";
-						// status.add(currentOrder);
 					}
 					repliesCnt++;
 					if (repliesCnt >= sellerAgents.length) {
 						// We received all replies
-						// System.out.println("\tReceived all replies");
 						if (refuseCnt >= sellerAgents.length) {
-							// System.out.println("\tEveryone refused");
 							// System.out.println(""+targetBookTitle+" could not be located");
 							currentOrder = new Orders();
 							currentOrder.title = targetBookTitle;
@@ -193,9 +175,9 @@ public class BookBuyerAgent extends Agent {
 							currentOrder.price = "Cannot be found";
 							currentOrder.orderStatus = "Failed";
 							status.add(currentOrder);
-							step = 0;
+							step = 0; // If all sellers refuse then conclude that book cannot be found
 						} else { 
-							step = 2;
+							step = 2; // Move to next step
 						} 
 					}
 				}
@@ -232,13 +214,11 @@ public class BookBuyerAgent extends Agent {
 					}
 					if (counter >= MIN_ORDERS) {
 						step = 4;
-						name = getAID().getName().split("@")[0];
 						if (!shutdownRequested) {
 							myAgent.addBehaviour(new shutdown());
 							shutdownRequested = true;
 						}
 						// myAgent.doDelete();
-						// System.out.println("******************BUYER : "+getAID().getName()+" is done******************");
 					} else {
 						step = 0;
 					}
@@ -258,7 +238,6 @@ public class BookBuyerAgent extends Agent {
 				currentOrder.price = "Not Available";
 				currentOrder.orderStatus = "Failed";
 				status.add(currentOrder);
-				// System.out.println("Attempt failed: "+targetBookTitle+" not available for sale");
 			} else if (flag){
 				flag = false;
 				currentOrder = new Orders();
@@ -268,7 +247,6 @@ public class BookBuyerAgent extends Agent {
 				currentOrder.orderStatus = "Success";
 				status.add(currentOrder);
 			}
-			// System.out.println("\t Truth Condition "+((step == 2 && bestSeller == null) || (step == 4)));
 			return ((step == 2 && bestSeller == null) || (step == 4));
 		}
 	}  // End of inner class RequestPerformer

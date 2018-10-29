@@ -30,6 +30,13 @@ public class BookSellerAgent extends Agent {
 	private int[] inventory_quantity = new int[MAX_BOOKS];
 	private String source_path = "";
 	private String relative_path = "/src/main/java/maas/tutorials/SellerInventory.csv";
+	String name = "";
+	// The catalogue of books for sale (maps the title of a book to its price)
+	private Hashtable catalogue;
+	private Hashtable remaining_inventory;
+
+	// Convert string to integer using following post,
+	// https://javahungry.blogspot.com/2014/02/how-to-convert-string-to-int-in-java-without-using-integer-parseint-method-code-with-example.html
 	public static int stringToint( String str ){
         int i = 0, number = 0;
         boolean isNegative = false;
@@ -58,9 +65,9 @@ public class BookSellerAgent extends Agent {
 		}
         BufferedReader fileReader = null;
  		StringBuilder st = new StringBuilder();
-        st.append("****************************************************************************\n");
-        st.append("********************** "+arg+ " Catalogue ***********************************\n");
-        st.append("****************************************************************************\n");
+        st.append("==================================================================================================================================\n");
+        st.append("                                                "+arg+ " Catalogue                                                                \n");
+        st.append("==================================================================================================================================\n");
          
         //Delimiter used in CSV file
         final String DELIMITER = ",";
@@ -96,7 +103,7 @@ public class BookSellerAgent extends Agent {
 	                }
             	}
             }
-            st.append("****************************************************************************");
+            st.append("__________________________________________________________________________________________________________________________________\n");
             System.out.println(st.toString());
         }
         catch (Exception e) {
@@ -112,16 +119,12 @@ public class BookSellerAgent extends Agent {
         }
 
 	}
-	// The catalogue of books for sale (maps the title of a book to its price)
-	private Hashtable catalogue;
-	private Hashtable remaining_inventory;
+	
 	protected void setup() {
 	// Printout a welcome message
 		System.out.println("Hello! Seller-agent "+getAID().getName()+" is ready.");
 		// Create the catalogue
-		final String DELIMITER = "@";
-		String name = getAID().getName().split(DELIMITER)[0];
-		// System.out.println("Name is "+name);
+		name = getAID().getLocalName();
 		getInventory(name);
 		catalogue = new Hashtable();
 		remaining_inventory = new Hashtable();
@@ -155,24 +158,22 @@ public class BookSellerAgent extends Agent {
 	
 	// Put agent clean-up operations here
 	protected void takeDown() {
-		final String DELIMITER = "@";
-		String name = getAID().getName().split(DELIMITER)[0];
 		// Deregister from the yellow pages
 		StringBuilder st = new StringBuilder();
-		st.append("**********************************************************************************************************************************\n");
-        st.append("********************************************** "+name+ " Inventory ***************************************************************\n");
-        st.append("**********************************************************************************************************************************\n");
+		st.append("==================================================================================================================================\n");
+        st.append("                                                "+name+ " Inventory                                                                \n");
+        st.append("==================================================================================================================================\n");
         for(int i=0; i< inventory_names.length; i++) {
         	st.append(""+(i+1)+")");
         	String title = inventory_names[i];
         	st.append(" Title : "+title);
-        	st.append(" ,Price : "+catalogue.get(title));
+        	st.append(" ,   Price : "+catalogue.get(title));
         	if (title.contains("E-Book")) {
-        		st.append(" ,Quantity : Unlimited");
-        		st.append(" ,Type : Softcopy/ebook\n");
+        		st.append(" ,   Quantity : Unlimited");
+        		st.append(" ,   Type : Softcopy/ebook\n");
         	} else {
-        		st.append(" ,Quantity : "+remaining_inventory.get(title));
-        		st.append(" ,Type : Hardcopy/Paperback\n");
+        		st.append(" ,   Quantity : "+remaining_inventory.get(title));
+        		st.append(" ,   Type : Hardcopy/Paperback\n");
         	}
         }
 		try {
@@ -183,7 +184,7 @@ public class BookSellerAgent extends Agent {
 		}
 		// Printout a dismissal message
 		st.append("Seller Agent "+name+" will terminate now !\n");
-		st.append("**********************************************************************************************************************************");
+		st.append("__________________________________________________________________________________________________________________________________\n");
 		System.out.println(st.toString());
 	}
 
@@ -257,25 +258,22 @@ public class BookSellerAgent extends Agent {
 		public void action() {
 			MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL);
 			ACLMessage msg = myAgent.receive(mt);
-			final String DELIMITER = "@";
-			String name = getAID().getName().split(DELIMITER)[0];
 			if (msg != null) {
 				// ACCEPT_PROPOSAL Message received. Process it
 				String title = msg.getContent();
 				ACLMessage reply = msg.createReply();
 
-				// Integer price = (Integer) catalogue.remove(title);
 				Integer price = (Integer) catalogue.get(title);
 				Integer quantity = (Integer) remaining_inventory.get(title);
-				if (title.contains("E-Book")) {
-					// System.out.println("Book Details: " + title + " Price: " + price + " No's: Unlimited");
-				} else {
-					// System.out.println("Book Details: " + title + " Price: " + price + " No's: " + quantity);
-				}
+				// if (title.contains("E-Book")) {
+				// 	// System.out.println("Book Details: " + title + " Price: " + price + " No's: Unlimited");
+				// } else {
+				// 	// System.out.println("Book Details: " + title + " Price: " + price + " No's: " + quantity);
+				// }
 				if ((price != null) && (quantity != null)) {
 					reply.setPerformative(ACLMessage.INFORM);
 					// System.out.println(title+" sold to agent "+msg.getSender().getName());
-					String name_buyer = msg.getSender().getName().split(DELIMITER)[0];
+					String name_buyer = msg.getSender().getName().split("@")[0];
 					// System.out.println("<----------------"+name+" sold the book "+title+" to "+name_buyer);
 					if (!title.contains("E-Book")) {
 						remaining_inventory.put(title, quantity-1);
